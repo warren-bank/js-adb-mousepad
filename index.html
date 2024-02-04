@@ -1,0 +1,273 @@
+<html>
+<head>
+  <script src="//www.unpkg.com/@warren-bank/adb-monkey/browser-build/dist/es2020/adb-monkey.js"></script>
+  <script>
+    const monkey = window.Monkey
+    const state  = {}
+    let client
+
+    const get_client = function() {
+      return new Promise((resolve, reject) => {
+        if (is_websocket_open()) {
+          resolve(client)
+        }
+        else {
+          client = monkey.connect([
+            8080,
+            'localhost',
+            function() {
+              resolve(client)
+            }
+          ])
+        }
+      })
+    }
+
+    const is_websocket_open = function() {
+      return client && (client.stream.socket.readyState === WebSocket.OPEN)
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      init()
+    })
+
+    window.addEventListener('beforeunload', function() {
+      if (is_websocket_open())
+        client.stream.socket.close()
+      if (client)
+        client.end()
+    })
+
+    const init = async function() {
+      state.mousepad = document.getElementById('mousepad')
+
+      try {
+        await get_client()
+        await set_mousepad_size()
+        attach_event_listeners()
+      }
+      catch(err) {
+        state.mousepad.textContent = err.message
+      }
+    }
+
+    const set_mousepad_size = async function() {
+      const android_screen_size = await get_android_screen_size()
+      const browser_screen_size =       get_browser_screen_size()
+      const mousepad_size       =       {}
+
+      const android_aspect_ratio = android_screen_size.width / android_screen_size.height
+      const browser_aspect_ratio = browser_screen_size.width / browser_screen_size.height
+
+      if (android_aspect_ratio > browser_aspect_ratio) {
+        mousepad_size.width  = browser_screen_size.width
+        mousepad_size.height = browser_screen_size.width / android_aspect_ratio
+      }
+      else {
+        mousepad_size.height = browser_screen_size.height
+        mousepad_size.width  = browser_screen_size.height * android_aspect_ratio
+      }
+
+      state.android_screen_size = android_screen_size
+      state.browser_screen_size = browser_screen_size
+      state.mousepad_size       = mousepad_size
+
+      state.mousepad.style.width  = Math.floor(mousepad_size.width)  + 'px'
+      state.mousepad.style.height = Math.floor(mousepad_size.height) + 'px'
+    }
+
+    const get_android_screen_size = function() {
+      return new Promise((resolve, reject) => {
+        client.getDisplayWidth(function(err, width) {
+          if (err) {
+            reject(err)
+          }
+          else {
+            client.getDisplayHeight(function(err, height) {
+              if (err) {
+                reject(err)
+              }
+              else {
+                resolve({width, height})
+              }
+            })
+          }
+        })
+      })
+    }
+
+    const get_browser_screen_size = function() {
+      return {
+        width:  document.body.clientWidth,
+        height: document.body.clientHeight
+      }
+    }
+
+    const attach_event_listeners = function() {
+      state.mousepad.addEventListener('keydown',   on_keyboard_event)
+      state.mousepad.addEventListener('mousedown', on_mouse_event)
+      state.mousepad.addEventListener('mouseup',   on_mouse_event)
+      state.mousepad.addEventListener('mousemove', on_mouse_event)
+    }
+
+    const on_keyboard_event = async function(event) {
+      try {
+        const key  = event.key
+        const ctrl = event.ctrlKey
+
+        await get_client()
+
+        if (ctrl) {
+          switch(key) {
+            case 'a':
+              client.press(109) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_BUTTON_SELECT
+              break
+            case 'x':
+              client.press(277) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_CUT
+              break
+            case 'c':
+              client.press(278) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_COPY
+              break
+            case 'v':
+              client.press(279) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_PASTE
+              break
+
+            case 'Home':
+              client.press(3)   // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_HOME
+              break
+            case 'Backspace':
+              client.press(4)   // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_BACK
+              break
+            case 'ArrowUp':
+              client.press(24)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_VOLUME_UP
+              break
+            case 'ArrowDown':
+              client.press(25)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_VOLUME_DOWN
+              break
+          }
+        }
+        else {
+          switch(key) {
+            case 'Tab':
+              client.press(61)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_TAB
+              break
+            case 'Enter':
+              client.press(66)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_ENTER
+              break
+            case 'Backspace':
+              client.press(67)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_DEL
+              break
+            case 'Delete':
+              client.press(112) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_FORWARD_DEL
+              break
+            case 'Home':
+              client.press(122) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_MOVE_HOME
+              break
+            case 'End':
+              client.press(123) // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_MOVE_END
+              break
+            case 'PageUp':
+              client.press(92)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_PAGE_UP
+              break
+            case 'PageDown':
+              client.press(93)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_PAGE_DOWN
+              break
+            case 'ArrowUp':
+              client.press(19)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_DPAD_UP
+              break
+            case 'ArrowDown':
+              client.press(20)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_DPAD_DOWN
+              break
+            case 'ArrowLeft':
+              client.press(21)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_DPAD_LEFT
+              break
+            case 'ArrowRight':
+              client.press(22)  // https://developer.android.com/reference/android/view/KeyEvent#KEYCODE_DPAD_RIGHT
+              break
+            default:
+              if (key.length === 1) {
+                client.type(key)
+              }
+              break
+          }
+        }
+      }
+      catch(err) {
+      }
+    }
+
+    const on_mouse_event = async function(event) {
+      try {
+        const {x, y} = getTouchCoordinates(event)
+
+        await get_client()
+
+        switch(event.type) {
+          case 'mousedown':
+            client.touchDown(x, y)
+            break
+          case 'mouseup':
+            client.touchUp(x, y)
+            break
+          case 'mousemove':
+            if (debounceEvent()) {
+              client.touchMove(x, y)
+            }
+            break
+        }
+      }
+      catch(err) {
+      }
+    }
+
+    const getTouchCoordinates = function(event) {
+      const mousepad_coords = {
+        x: event.clientX,
+        y: event.clientY
+      }
+      const mousepad_percent = {
+        x: (mousepad_coords.x / state.mousepad_size.width),
+        y: (mousepad_coords.y / state.mousepad_size.height)
+      }
+      const android_coords = {
+        x: Math.floor(mousepad_percent.x * state.android_screen_size.width),
+        y: Math.floor(mousepad_percent.y * state.android_screen_size.height)
+      }
+      return android_coords
+    }
+
+    const debounceEvent = function() {
+      const thisEventTimestampMs = Date.now()
+      const prevEventTimestampMs = state.lastEvent || 0
+      const debounceMs           = 50
+
+      const pass = (thisEventTimestampMs >= (prevEventTimestampMs + debounceMs))
+
+      if (pass) {
+        state.lastEvent = thisEventTimestampMs
+      }
+
+      return pass
+    }
+  </script>
+  <style>
+    html, body, #mousepad {
+      margin: 0;
+      padding: 0;
+    }
+
+    body > #mousepad {
+      position: absolute;
+      width: 0px;
+      height: 0px;
+      top: 0;
+      left: 0;
+      background-color: #eee;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="mousepad" tabindex="0"></div>
+</body>
+</html>
